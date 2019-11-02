@@ -1,0 +1,179 @@
+---
+title: "K means Clustering"
+author: "ManojKumar Chalamala"
+date: "10/29/2019"
+output:
+  html_document: default
+  word_document: default
+---
+
+Install the required Packages
+```{r}
+#install.packages("tidyverse")
+library(tidyverse)
+#install.packages("factoextra")
+library(factoextra)
+library(readr)
+library(ISLR)
+library(caret)
+library(ggplot2)
+```
+
+
+Read the data
+
+```{r}
+Univ <- read.csv("Universities.csv")
+str(Univ)
+```
+
+# a. Remove all records with missing measurements from the dataset.
+
+```{r}
+# remove all the missing values from the dataset by using na.omit
+MyData <- na.omit(Univ)
+
+# remove all the categorical variables from the dataset
+MyData <- MyData[, c(-1, -2, -3)]
+```
+
+# b. For all the continuous measurements, run K-Means clustering. Make sure to normalize the measurements. How many clusters seem reasonable for describing these data? What was your optimal K?
+
+```{r}
+# Scaling the data frame (z-score) 
+MyData <- scale(MyData)
+View(MyData)
+distance <- get_dist(MyData)
+fviz_dist(distance)
+
+# Determining K
+# WSS method - Let us use an “elbow chart” to determine k
+fviz_nbclust(MyData, kmeans, method = "wss")
+# The chart shows that the elbow point 3 provides the best value for k. 
+
+# Silhouette Method - Let us now apply the Silhouette Method to determine the number of clusters
+fviz_nbclust(MyData, kmeans, method = "silhouette")
+# We see that 3 is the ideal number of clusters. 
+
+# Run the Kmeans algorithm for clustering. 
+# We will choose an initial value of k = 3, number of restarts =15
+k3 <- kmeans(MyData, centers = 3, nstart = 15)
+
+# Visualize the output
+k3$centers # output the centers
+
+k3$size #No. of Universities in each cluster
+
+k3 # mean of each cluster
+
+k3$cluster[325] # Identify the cluster of the 325th observation as an example
+
+fviz_cluster(k3, data = MyData) # Visualize the output
+
+```
+
+# c. Compare the summary statistics for each cluster and describe each cluster in this context (e.g., “Universities with high tuition, low acceptance rate...”)
+
+```{r}
+# mean of each cluster
+k3$centers 
+# Based on mean of each cluster compare the statistics of each cluster and described each cluster with High, low and medium context
+ComparedData <- read.csv("ClusterComparison.csv") # Comparison of each cluster is stored in this excel
+ComparedData #Displays the comparison of each cluster for all columns 
+
+# plot an empty scatter plot
+windows()
+plot(c(0), xaxt = 'n', ylab = "", type = "l",
+ylim = c(min(k3$centers), max(k3$centers)), xlim = c(0, 18))
+# label x-axes
+axis(1, at = c(1:17), labels = names(k3$centers))
+# plot centroids
+for (i in c(1:3))
+lines(k3$centers[i,], lty = i, lwd = 2, col = ifelse(i %in% c(1, 2, 3),
+"black", "dark grey"))
+# name clusters
+text(x = 0.5, y = k3$centers[, 1], labels = paste("Cluster", c(1:3)))
+
+```
+
+The above graph displays the comparison of summary stats of each cluster
+
+# d. Use the categorical measurements that were not used in the analysis (State and Private/Public) to characterize the different clusters. Is there any relationship between the clusters and the categorical information?
+
+```{r}
+MyData1 <- Univ
+MyData1 <- na.omit(MyData1)
+View(MyData1)
+
+MyData2 <- cbind(MyData1[,c(1:3)],k3$cluster)
+
+
+
+MyData2$Public..1...Private..2. <- factor(MyData2$Public..1...Private..2.,levels = c(1,2),labels = c("public","private"))
+
+MyData2$`k3$cluster` <- factor(MyData2$`k3$cluster`,levels = c(1,2,3),labels = c("Low ","Medium", "High"))
+
+head(MyData2)
+
+ggplot(MyData2, aes(x=MyData2$Public..1...Private..2., y=MyData2$State, color=MyData2$`k3$cluster`)) + geom_point()
+
+```
+
+
+Based on the graph,
+
+Cluster 1 shows equaivalent proportion of both Public and Private Universities
+
+Cluster 2 shows more Public Universities when compared with private
+
+Cluster 3 shows more Private Universities when compared with public
+
+# e. What other external information can explain the contents of some or all of these clusters?
+
+
+```{r}
+MyData2[MyData2$`k3$cluster`=="Low ",]
+# Cluster 1 shows equaivalent proportion of both Public and Private Universities
+
+MyData2[MyData2$`k3$cluster`=="Medium",]
+# Cluster 2 shows more Public Universities when compared with private
+
+MyData2[MyData2$`k3$cluster`=="High",]
+# Cluster 3 shows more Private Universities when compared with public
+
+k3$withinss
+
+k3$iter
+
+```
+
+# f. Consider Tufts University, which is missing some information. Compute the Euclidean distance of this record from each of the clusters that you found above (using only the measurements that you have). Which cluster is it closest to? Impute the missing values for Tufts by taking the average of the cluster on those measurements. 
+
+```{r}
+MyData3 <- read.csv("Universities.csv")
+# Considering Tufts University
+MyData4 <- MyData3[ MyData3$College.Name== "Tufts University",]
+View(MyData4)
+# Compute Euclidian Distance
+dist(rbind(MyData4[, -c(1, 2, 3,10)], k3$centers[1,]))
+dist(rbind(MyData4[, -c(1, 2, 3,10)], k3$centers[2,]))
+dist(rbind(MyData4[, -c(1, 2, 3,10)], k3$centers[3,]))
+```
+
+Based on the above distances it is closest to Cluster 3
+
+Impute the missing values for Tufts by taking the average of the cluster on those measurements
+```{r}
+MyData5 <- read.csv("Universities.csv")
+MyData5 <- na.omit(MyData5)
+MyData5 <- cbind(MyData5,k3$cluster)
+View(MyData5)
+#Filter the values which falls under cluster3
+MyData6 <- filter(MyData5, MyData5$`k3$cluster` == 3)
+MyData7 <- mean(MyData6[,c(10)])
+MyData7
+MyData4$X..PT.undergrad <- MyData7
+# After filling missing value with mean
+MyData4
+```
+
